@@ -1,0 +1,34 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  plugins: [react()],
+  server: { port: 5173 },
+  build: { target: "es2022" },
+});
+import type { Config } from "tailwindcss";
+
+export default {
+  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        bg: "#050816",
+        primary: "#7c3aed",
+        accent: "#06b6d4",
+        highlight: "#ec4899",
+        success: "#22c55e",
+      },
+      boxShadow: {
+        neon: "0 0 20px rgba(124,58,237,.45), 0 0 50px rgba(6,182,212,.25)",
+      },
+    },
+  },
+  plugins: [],
+} satisfies Config;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+html, body, #root { height: 100%; background: #050816; }
