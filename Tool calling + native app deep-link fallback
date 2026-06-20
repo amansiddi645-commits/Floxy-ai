@@ -1,0 +1,77 @@
+type Platform = "android" | "ios" | "desktop";
+
+function detectPlatform(): Platform {
+  const ua = navigator.userAgent.toLowerCase();
+  const isAndroid = /android/.test(ua);
+  const isIOS = /iphone|ipad|ipod/.test(ua);
+  if (isAndroid) return "android";
+  if (isIOS) return "ios";
+  return "desktop";
+}
+
+function isAllowedUrl(url: string) {
+  try {
+    const u = new URL(url);
+    return ["https:", "http:"].includes(u.protocol);
+  } catch {
+    // allow non-URL schemes separately
+    return false;
+  }
+}
+
+const ALLOWED_PROTOCOLS = new Set(["https:", "intent:", "geo:"]);
+
+export class AppLauncher {
+  static sanitizeProtocol(url: string) {
+    const proto = url.split(":")[0] + ":";
+    if (!ALLOWED_PROTOCOLS.has(proto)) throw new Error("Blocked protocol");
+    return url;
+  }
+
+  static async open({ webUrl, androidIntent, iosScheme }: {
+    webUrl: string;
+    androidIntent?: string;   // intent://...
+    iosScheme?: string;       // youtube://, tg://, whatsapp:// etc
+  }) {
+    const platform = detectPlatform();
+
+    // Desktop: always open web
+    if (platform === "desktop") {
+      if (!isAllowedUrl(webUrl)) throw new Error("Invalid webUrl");
+      window.open(webUrl, "_blank", "noopener,noreferrer");
+      return { opened: "web" as const, url: webUrl };
+    }
+
+    // Mobile: attempt deep link quickly, then fallback
+    const deepLink =
+      platform === "android" ? androidIntent : iosScheme;
+
+    const fallback = () => {
+      if (!isAllowedUrl(webUrl)) throw new Error("Invalid webUrl");
+      window.open(webUrl, "_blank", "noopener,noreferrer");
+      return { opened: "web" as const, url: webUrl };
+    };
+
+    if (!deepLink) return fallback();
+
+    // Attempt deep link (non-blocking); fallback after short timeout.
+    // Note: true “installed app detection” is limited on the web; timeout fallback is standard practice.
+    const safeDeep = this.sanitizeProtocol(deepLink);
+
+    const t0 = Date.now();
+    const timeoutMs = 700;
+
+    // Try open deep link in same tab (more reliable for schemes)
+    window.location.href = safeDeep;
+
+    // If still on page after timeout, fallback to web
+    await new Promise((r) => setTimeout(r, timeoutMs));
+
+    // Heuristic: if page not backgrounded, assume fail
+    if (document.visibilityState === "visible" && Date.now() - t0 >= timeoutMs) {
+      return fallback();
+    }
+
+    return { opened: "native" as const, url: safeDeep };
+  }
+}
