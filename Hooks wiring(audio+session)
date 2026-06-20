@@ -1,0 +1,35 @@
+import { useMemo, useRef } from "react";
+import { GeminiLiveSession } from "../services/GeminiLiveSession";
+import { useAssistantStore } from "../store/assistantStore";
+import { AudioPlayer } from "../audio/AudioPlayer";
+
+export function useLiveSession() {
+  const { setState, setError } = useAssistantStore();
+  const playerRef = useRef(new AudioPlayer());
+
+  const session = useMemo(() => {
+    return new GeminiLiveSession({
+      onStateChange: setState,
+      onAudioReceived: async (pcm) => {
+        await playerRef.current.playPcm16Chunk(pcm);
+      },
+      onToolCall: () => {},
+      onError: (e) => setError(String((e as any)?.message ?? e)),
+    });
+  }, [setState, setError]);
+
+  return { session, player: playerRef.current };
+}import { useRef, useState } from "react";
+import { AudioRecorder } from "../audio/AudioRecorder";
+
+export function useAudio() {
+  const recRef = useRef(new AudioRecorder());
+  const [rms, setRms] = useState(0);
+
+  return {
+    rms,
+    start: (onChunk: (pcm: Int16Array) => void) =>
+      recRef.current.start({ onChunk, onRms: setRms }),
+    stop: () => recRef.current.stop(),
+  };
+}
