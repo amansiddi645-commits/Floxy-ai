@@ -1,0 +1,28 @@
+export class AudioProcessor {
+  // Float32 [-1..1] -> Int16 PCM
+  static floatToPcm16(input: Float32Array): Int16Array {
+    const out = new Int16Array(input.length);
+    for (let i = 0; i < input.length; i++) {
+      const s = Math.max(-1, Math.min(1, input[i]));
+      out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    return out;
+  }
+
+  // Int16 PCM -> Float32 [-1..1] for playback
+  static pcm16ToFloat(input: Int16Array): Float32Array {
+    const out = new Float32Array(input.length);
+    for (let i = 0; i < input.length; i++) out[i] = input[i] / 0x8000;
+    return out;
+  }
+
+  // Very lightweight downsample (production: consider better resampler)
+  static downsampleTo16k(float32: Float32Array, inputRate: number): Float32Array {
+    if (inputRate === 16000) return float32;
+    const ratio = inputRate / 16000;
+    const newLen = Math.floor(float32.length / ratio);
+    const out = new Float32Array(newLen);
+    for (let i = 0; i < newLen; i++) out[i] = float32[Math.floor(i * ratio)];
+    return out;
+  }
+}
