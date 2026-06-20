@@ -1,0 +1,64 @@
+import { AudioProcessor } from "./AudioProcessor";
+
+export type RecorderCallbacks = {
+  onChunk: (pcm16: Int16Array) => void;
+  onRms?: (rms: number) => void;
+};
+
+export class AudioRecorder {
+  private ctx?: AudioContext;
+  private stream?: MediaStream;
+  private source?: MediaStreamAudioSourceNode;
+  private processor?: ScriptProcessorNode;
+  private running = false;
+
+  async start(cb: RecorderCallbacks) {
+    if (this.running) return;
+    this.running = true;
+
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+
+    this.ctx = new AudioContext(); // input rate varies by device
+    this.source = this.ctx.createMediaStreamSource(this.stream);
+
+    // 2048 is a reasonable starting chunk size
+    this.processor = this.ctx.createScriptProcessor(2048, 1, 1);
+
+    this.processor.onaudioprocess = (e) => {
+      const input = e.inputBuffer.getChannelData(0);
+      // RMS for waveform
+      if (cb.onRms) {
+        let sum = 0;
+        for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+        cb.onRms(Math.sqrt(sum / input.length));
+      }
+
+      const down = AudioProcessor.downsampleTo16k(input, this.ctx!.sampleRate);
+      const pcm16 = AudioProcessor.floatToPcm16(down);
+      cb.onChunk(pcm16);
+    };
+
+    this.source.connect(this.processor);
+    this.processor.connect(this.ctx.destination); // required for processor to run
+  }
+
+  stop() {
+    this.running = false;
+    this.processor?.disconnect();
+    this.source?.disconnect();
+    this.stream?.getTracks().forEach((t) => t.stop());
+    this.ctx?.close();
+
+    this.processor = undefined;
+    this.source = undefined;
+    this.stream = undefined;
+    this.ctx = undefined;
+  }
+}
