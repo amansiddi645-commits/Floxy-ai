@@ -1,0 +1,175 @@
+import { ToolHandler } from "./ToolHandler";
+
+type AssistantState = "disconnected" | "connecting" | "listening" | "speaking";
+
+type Callbacks = {
+  onStateChange: (s: AssistantState) => void;
+  onAudioReceived: (pcm16_24k: Int16Array) => void;
+  onToolCall: (toolName: string) => void;
+  onError: (err: unknown) => void;
+};
+
+export class GeminiLiveSession {
+  private ws?: WebSocket;
+  private toolHandler = new ToolHandler();
+  private cb: Callbacks;
+
+  private reconnectAttempts = 0;
+  private closedByUser = false;
+
+  constructor(cb: Callbacks) {
+    this.cb = cb;
+  }
+
+  async connect(): Promise<void> {
+    this.closedByUser = false;
+    this.cb.onStateChange("connecting");
+
+    const base = import.meta.env.VITE_API_BASE_URL as string;
+    const { url } = await fetch(`${base}/v1/gemini/live-url`, { method: "POST" })
+      .then((r) => r.json());
+
+    await this.openWs(url);
+  }
+
+  disconnect(): void {
+    this.closedByUser = true;
+    this.reconnectAttempts = 0;
+    try { this.ws?.close(); } catch {}
+    this.ws = undefined;
+    this.cb.onStateChange("disconnected");
+  }
+
+  sendAudio(chunk: Int16Array): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+    // Protocol depends on your proxy. Here we send base64 PCM16 frames.
+    const b64 = this.int16ToBase64(chunk);
+    this.ws.send(JSON.stringify({
+      type: "input_audio_buffer.append",
+      audio: { format: "pcm16", sample_rate_hz: 16000, data: b64 },
+    }));
+  }
+
+  interrupt(): void {
+    // Stop local playback immediately + tell model to stop talking (barge-in)
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    this.ws.send(JSON.stringify({ type: "output_audio_buffer.clear" }));
+    this.ws.send(JSON.stringify({ type: "response.cancel" }));
+  }
+
+  private async openWs(url: string) {
+    return new Promise<void>((resolve, reject) => {
+      const ws = new WebSocket(url);
+      this.ws = ws;
+
+      ws.onopen = () => {
+        this.reconnectAttempts = 0;
+
+        // Configure the live session: audio-only in/out, persona in system prompt
+        ws.send(JSON.stringify({
+          type: "session.update",
+          session: {
+            model: "gemini-3.1-flash-live-preview",
+            modalities: ["audio"],
+            instructions:
+              "You are Floxy AI: young, confident, witty, expressive. " +
+              "Playful, emotionally aware, short responses with natural pauses. " +
+              "Light sarcasm, friendly humor. No romantic/inappropriate content. " +
+              "Audio-only: do not request typing, do not output UI text.",
+            // Tools exposed to the model
+            tools: [{
+              name: "openWebsite",
+              description: "Open a website in a new browser tab",
+              parameters: {
+                type: "object",
+                properties: { url: { type: "string" } },
+                required: ["url"]
+              }
+            }, {
+              name: "openApp",
+              description: "Open a supported app natively on mobile with web fallback",
+              parameters: {
+                type: "object",
+                properties: { target: { type: "string" } },
+                required: ["target"]
+              }
+            }],
+            input_audio: { format: "pcm16", sample_rate_hz: 16000 },
+            output_audio: { format: "pcm16", sample_rate_hz: 24000 },
+          }
+        }));
+
+        // Start turn-less continuous mode (proxy decides exact event names)
+        ws.send(JSON.stringify({ type: "input_audio_buffer.start" }));
+
+        this.cb.onStateChange("listening");
+        resolve();
+      };
+
+      ws.onerror = (e) => {
+        this.cb.onError(e);
+        reject(e);
+      };
+
+      ws.onclose = () => {
+        this.ws = undefined;
+        if (this.closedByUser) return;
+
+        // Auto-reconnect with capped backoff
+        this.cb.onStateChange("disconnected");
+        const delay = Math.min(3000, 250 * Math.pow(2, this.reconnectAttempts++));
+        setTimeout(() => this.connect().catch(this.cb.onError), delay);
+      };
+
+      ws.onmessage = async (evt) => {
+        try {
+          const msg = JSON.parse(String(evt.data));
+
+          // 1) Model audio streaming
+          if (msg.type === "output_audio_buffer.audio") {
+            this.cb.onStateChange("speaking");
+            const pcm16 = this.base64ToInt16(msg.audio?.data);
+            this.cb.onAudioReceived(pcm16);
+            return;
+          }
+
+          if (msg.type === "output_audio_buffer.end") {
+            this.cb.onStateChange("listening");
+            return;
+          }
+
+          // 2) Tool calling
+          if (msg.type === "tool.call") {
+            const tool = { name: msg.name, args: msg.args };
+            this.cb.onToolCall(tool.name);
+
+            const result = await this.toolHandler.handle(tool);
+            ws.send(JSON.stringify({
+              type: "tool.result",
+              name: tool.name,
+              result,
+            }));
+            return;
+          }
+        } catch (err) {
+          this.cb.onError(err);
+        }
+      };
+    });
+  }
+
+  private int16ToBase64(i16: Int16Array): string {
+    const u8 = new Uint8Array(i16.buffer);
+    let s = "";
+    for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    return btoa(s);
+  }
+
+  private base64ToInt16(b64: string): Int16Array {
+    const bin = atob(b64);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return new Int16Array(u8.buffer);
+  }
+}
