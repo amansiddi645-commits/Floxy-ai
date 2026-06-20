@@ -1,0 +1,44 @@
+import { AudioProcessor } from "./AudioProcessor";
+
+export class AudioPlayer {
+  private ctx?: AudioContext;
+  private gain?: GainNode;
+  private currentSource?: AudioBufferSourceNode;
+
+  async ensure() {
+    if (!this.ctx) {
+      this.ctx = new AudioContext({ sampleRate: 24000 });
+      this.gain = this.ctx.createGain();
+      this.gain.gain.value = 1.0;
+      this.gain.connect(this.ctx.destination);
+    }
+    if (this.ctx.state !== "running") await this.ctx.resume();
+  }
+
+  async playPcm16Chunk(pcm16: Int16Array) {
+    await this.ensure();
+    const float32 = AudioProcessor.pcm16ToFloat(pcm16);
+
+    const buffer = this.ctx!.createBuffer(1, float32.length, 24000);
+    buffer.copyToChannel(float32, 0);
+
+    const src = this.ctx!.createBufferSource();
+    src.buffer = buffer;
+    src.connect(this.gain!);
+    src.start();
+
+    this.currentSource = src;
+  }
+
+  interrupt() {
+    try { this.currentSource?.stop(); } catch {}
+    this.currentSource = undefined;
+  }
+
+  async close() {
+    this.interrupt();
+    await this.ctx?.close();
+    this.ctx = undefined;
+    this.gain = undefined;
+  }
+}
