@@ -1,0 +1,32 @@
+import { AppLauncher } from "./AppLauncher";
+
+export type ToolCall = { name: string; args: any };
+
+export class ToolHandler {
+  async handle(tool: ToolCall): Promise<any> {
+    switch (tool.name) {
+      case "openWebsite": {
+        const url = String(tool.args?.url ?? "");
+        if (!url.startsWith("https://")) throw new Error("Only https URLs allowed");
+        window.open(url, "_blank", "noopener,noreferrer");
+        return { ok: true };
+      }
+
+      case "openApp": {
+        // Example: open YouTube with native fallback
+        const target = String(tool.args?.target ?? "youtube");
+        if (target === "youtube") {
+          return AppLauncher.open({
+            webUrl: "https://youtube.com",
+            androidIntent: "intent://youtube.com/#Intent;scheme=https;package=com.google.android.youtube;end",
+            iosScheme: "youtube://",
+          });
+        }
+        throw new Error("Unknown target");
+      }
+
+      default:
+        throw new Error(`Unknown tool: ${tool.name}`);
+    }
+  }
+}
