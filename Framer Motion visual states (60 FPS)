@@ -1,0 +1,3 @@
+Use small, GPU-friendly transforms (opacity/scale/rotate), avoid expensive layout thrash:
+mic button glow: box-shadow is okay in moderation; keep blur radius reasonable.
+particles: canvas or low-count absolutely positioned divs.
