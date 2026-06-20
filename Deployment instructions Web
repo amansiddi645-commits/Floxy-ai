@@ -1,0 +1,10 @@
+cd apps/web
+npm i
+cp .env.example .env and set VITE_API_BASE_URL
+npm run dev / npm run build
+Server
+cd apps/server
+npm i
+cp .env.example .env and set GEMINI_API_KEY
+npm run dev (or node dist/index.js after build)
+Deploy server first (Fly.io / Render / Railway), then set VITE_API_BASE_URL to the deployed URL for the web build.
