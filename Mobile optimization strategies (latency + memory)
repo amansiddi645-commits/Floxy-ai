@@ -1,0 +1,5 @@
+Prefer AudioWorklet for the recorder (lower latency than ScriptProcessor).
+Keep chunks small (e.g., 20–40ms) but not too small to avoid overhead.
+Reuse typed arrays / ring buffers to reduce GC pressure.
+Suspend/close AudioContexts on disconnect; always stop tracks.
+Lazy-load particle component + heavy motion assets.
