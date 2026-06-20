@@ -1,0 +1,38 @@
+import { motion } from "framer-motion";
+import { useAssistantStore } from "../store/assistantStore";
+
+export function MicButton(props: {
+  onTap: () => void;
+  onLongPress: () => void;
+  state: string;
+}) {
+  const { muted } = useAssistantStore();
+
+  return (
+    <motion.button
+      aria-label={muted ? "Microphone muted" : "Microphone button"}
+      className="relative h-24 w-24 rounded-full bg-white/10 backdrop-blur border border-white/15 shadow-neon"
+      whileTap= scale: 0.92 
+      animate=
+        boxShadow:
+          props.state === "listening"
+            ? "0 0 25px rgba(6,182,212,.55)"
+            : props.state === "speaking"
+            ? "0 0 28px rgba(236,72,153,.55)"
+            : "0 0 20px rgba(124,58,237,.35)",
+      
+      onClick={props.onTap}
+      onPointerDown={(e) => {
+        const t = window.setTimeout(() => props.onLongPress(), 450);
+        const clear = () => window.clearTimeout(t);
+        e.currentTarget.onpointerup = clear;
+        e.currentTarget.onpointercancel = clear;
+        e.currentTarget.onpointerleave = clear;
+      }}
+    >
+      <div className="absolute inset-0 grid place-items-center">
+        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-accent opacity-90" />
+      </div>
+    </motion.button>
+  );
+}
