@@ -1,0 +1,23 @@
+import { create } from "zustand";
+
+export type AssistantState = "disconnected" | "connecting" | "listening" | "speaking";
+
+type Store = {
+  state: AssistantState;
+  muted: boolean;
+  error?: string;
+
+  setState: (s: AssistantState) => void;
+  setMuted: (v: boolean) => void;
+  setError: (e?: string) => void;
+};
+
+export const useAssistantStore = create<Store>((set) => ({
+  state: "disconnected",
+  muted: false,
+  error: undefined,
+
+  setState: (state) => set({ state, error: undefined }),
+  setMuted: (muted) => set({ muted }),
+  setError: (error) => set({ error }),
+}));
