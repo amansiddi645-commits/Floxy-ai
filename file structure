@@ -1,0 +1,39 @@
+floxy-ai/
+├─ apps/
+│  ├─ web/                          # Vite + React
+│  │  ├─ index.html
+│  │  ├─ vite.config.ts
+│  │  ├─ tailwind.config.ts
+│  │  ├─ postcss.config.js
+│  │  ├─ src/
+│  │  │  ├─ audio/
+│  │  │  │  ├─ AudioProcessor.ts
+│  │  │  │  ├─ AudioRecorder.ts
+│  │  │  │  └─ AudioPlayer.ts
+│  │  │  ├─ services/
+│  │  │  │  ├─ GeminiLiveSession.ts
+│  │  │  │  ├─ ToolHandler.ts
+│  │  │  │  └─ AppLauncher.ts
+│  │  │  ├─ store/
+│  │  │  │  └─ assistantStore.ts
+│  │  │  ├─ hooks/
+│  │  │  │  ├─ useAudio.ts
+│  │  │  │  └─ useLiveSession.ts
+│  │  │  ├─ components/
+│  │  │  │  ├─ MicButton.tsx
+│  │  │  │  ├─ Waveform.tsx
+│  │  │  │  ├─ StatusIndicator.tsx
+│  │  │  │  └─ FloatingParticles.tsx
+│  │  │  ├─ pages/
+│  │  │  │  └─ Home.tsx
+│  │  │  ├─ styles/
+│  │  │  │  └─ index.css
+│  │  │  ├─ main.tsx
+│  │  │  └─ App.tsx
+│  │  └─ .env.example
+│  └─ server/                       # Express proxy
+│     ├─ src/
+│     │  └─ index.ts
+│     ├─ package.json
+│     └─ .env.example
+└─ package.json                     # (optional) monorepo root
