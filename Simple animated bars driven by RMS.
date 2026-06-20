@@ -1,0 +1,103 @@
+import { motion } from "framer-motion";
+
+export function Waveform({ level, color }: { level: number; color: string }) {
+  const bars = new Array(24).fill(0);
+
+  return (
+    <div className="flex items-end gap-1 h-16">
+      {bars.map((_, i) => {
+        const h = 8 + Math.min(1, level * 3) * (10 + (i % 6) * 6);
+        return (
+          <motion.div
+            key={i}
+            className="w-1 rounded-full"
+            style= background: color 
+            animate= height: h 
+            transition= duration: 0.08 
+          />
+        );
+      })}
+    </div>
+  );
+}
+import { useAssistantStore } from "../store/assistantStore";
+
+export function StatusIndicator() {
+  const { state, error, muted } = useAssistantStore();
+  const label =
+    error ? "Connection hiccup. Recovering…" :
+    state === "connecting" ? "Connecting to Floxy…" :
+    state === "listening" ? (muted ? "Muted. I can wait." : "Listening…") :
+    state === "speaking" ? "Talking…" :
+    "Tap to connect";
+
+  return (
+    <div aria-live="polite" className="text-white/80 text-sm tracking-wide">
+      {label}
+    </div>
+  );
+}
+import { useAssistantStore } from "../store/assistantStore";
+import { useAudio } from "../hooks/useAudio";
+import { useLiveSession } from "../hooks/useLiveSession";
+import { MicButton } from "../components/MicButton";
+import { Waveform } from "../components/Waveform";
+import { StatusIndicator } from "../components/StatusIndicator";
+
+export function Home() {
+  const { state, muted, setMuted } = useAssistantStore();
+  const { rms, start, stop } = useAudio();
+  const { session, player } = useLiveSession();
+
+  const connect = async () => {
+    await session.connect();
+    await start((pcm) => {
+      if (!muted) session.sendAudio(pcm);
+    });
+  };
+
+  const disconnect = () => {
+    stop();
+    player.interrupt();
+    session.disconnect();
+  };
+
+  const onTap = () => {
+    if (state === "disconnected") connect().catch(() => {});
+    else disconnect();
+  };
+
+  const onLongPress = () => {
+    setMuted(!muted);
+    if (!muted) {
+      // muting while assistant speaking should barge-in locally
+      player.interrupt();
+      session.interrupt();
+    }
+  };
+
+  const color =
+    state === "speaking" ? "#ec4899" :
+    state === "listening" ? "#06b6d4" :
+    "#7c3aed";
+
+  return (
+    <main className="h-full w-full grid place-items-center px-6">
+      <div className="w-full max-w-sm text-center space-y-8">
+        <div className="text-white font-semibold tracking-[0.25em] text-xs">
+          FLOXY AI
+        </div>
+
+        <StatusIndicator />
+
+        <div className="grid place-items-center">
+          <Waveform level={rms} color={color} />
+        </div>
+
+        <div className="grid place-items-center pt-2">
+          <MicButton state={state} onTap={onTap} onLongPress={onLongPress} />
+        </div>
+      </div>
+    </main>
+  );
+}
