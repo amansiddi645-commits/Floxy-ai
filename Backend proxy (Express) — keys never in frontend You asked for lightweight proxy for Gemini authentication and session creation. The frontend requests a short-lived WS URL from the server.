@@ -1,0 +1,37 @@
+PORT=8787
+GEMINI_API_KEY=your_key_here
+ALLOWED_ORIGIN=http://localhost:5173
+import express from "express";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
+
+const app = express();
+app.use(express.json());
+
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGIN,
+  methods: ["GET", "POST"],
+}));
+
+app.use(rateLimit({ windowMs: 60_000, max: 60 }));
+
+// This endpoint returns a WS URL the client uses.
+// Implementation depends on the current Gemini Live transport.
+// The key point: server holds GEMINI_API_KEY, client never sees it.
+app.post("/v1/gemini/live-url", async (_req, res) => {
+  try {
+    // PSEUDO: replace with the actual Gemini Live session creation call
+    // using @google/genai on the server OR a direct REST call.
+    //
+    // Example shape:
+    // const url = await createLiveSessionUrl({ apiKey: process.env.GEMINI_API_KEY });
+    const url = "wss://YOUR_LIVE_ENDPOINT_FROM_GEMINI";
+    res.json({ url });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? "server_error" });
+  }
+});
+
+app.listen(process.env.PORT || 8787, () => {
+  console.log("Proxy listening");
+});
